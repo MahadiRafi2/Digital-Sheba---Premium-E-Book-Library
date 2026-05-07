@@ -42,6 +42,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [folderId, setFolderId] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -213,6 +214,11 @@ export default function AdminDashboard() {
     }
   }
 
+  const filteredBooks = books.filter(book => 
+    book.title.toLowerCase().includes(search.toLowerCase()) ||
+    book.id.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 selection:bg-blue-100 selection:text-blue-900">
       {/* Mobile Sidebar Overlay */}
@@ -300,6 +306,8 @@ export default function AdminDashboard() {
               <input 
                 className="bg-slate-50 h-10 pl-9 pr-4 w-44 md:w-60 rounded-xl border border-slate-200 focus:border-blue-500/50 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/5 text-sm transition-all placeholder:text-slate-400" 
                 placeholder="Search repository..." 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             <div className="flex items-center gap-3 pl-0 md:pl-6 border-l-0 md:border-l border-slate-200">
@@ -398,66 +406,88 @@ export default function AdminDashboard() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {books.map(book => (
-                            <TableRow key={book.id} className="group hover:bg-blue-50/30 border-slate-100 transition-colors">
-                              <TableCell className="py-5 pl-8">
-                                 <div className="flex items-center gap-4">
-                                    {book.thumbnailUrl ? (
-                                      <img src={book.thumbnailUrl} className="w-10 h-14 object-cover rounded shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
-                                    ) : (
-                                      <div className="w-10 h-14 rounded bg-slate-50 border border-slate-100 flex items-center justify-center">
-                                        <BookIcon className="w-4 h-4 text-slate-300" />
+                          {filteredBooks.length > 0 ? (
+                            filteredBooks.map(book => (
+                              <TableRow key={book.id} className="group hover:bg-blue-50/30 border-slate-100 transition-colors">
+                                <TableCell className="py-5 pl-8">
+                                   <div className="flex items-center gap-4">
+                                      {book.thumbnailUrl ? (
+                                        <img src={book.thumbnailUrl} className="w-10 h-14 object-cover rounded shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
+                                      ) : (
+                                        <div className="w-10 h-14 rounded bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                          <BookIcon className="w-4 h-4 text-slate-300" />
+                                        </div>
+                                      )}
+                                      <div className="max-w-[200px] sm:max-w-xs">
+                                         <p className="font-bold text-sm text-slate-900 leading-snug mb-0.5 group-hover:text-blue-600 transition-colors truncate sm:whitespace-normal">{book.title}</p>
+                                         <p className="font-mono text-[10px] text-slate-400 uppercase tracking-tighter truncate">{book.id}</p>
                                       </div>
-                                    )}
-                                    <div className="max-w-[200px] sm:max-w-xs">
-                                       <p className="font-bold text-sm text-slate-900 leading-snug mb-0.5 group-hover:text-blue-600 transition-colors truncate sm:whitespace-normal">{book.title}</p>
-                                       <p className="font-mono text-[10px] text-slate-400 uppercase tracking-tighter truncate">{book.id}</p>
-                                    </div>
-                                 </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge className="rounded-md uppercase font-bold text-[9px] bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-colors">{book.fileType}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                {book.hidden ? (
-                                  <Badge className="bg-red-50 text-red-600 border-red-100 font-bold text-[10px] uppercase tracking-tighter">Hidden</Badge>
-                                ) : (
-                                  <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 font-bold text-[10px] uppercase tracking-tighter">Visible</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="font-bold text-[11px] text-slate-400 whitespace-nowrap">
-                                {new Date(book.createdAt).toLocaleDateString()}
-                              </TableCell>
-                              <TableCell className="text-right pr-8">
-                                 <div className="flex items-center justify-end gap-2">
-                                   <Button 
-                                     variant="ghost" 
-                                     size="icon" 
-                                     className="h-9 w-9 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 hover:text-blue-600"
-                                     onClick={() => startEditing(book)}
-                                   >
-                                     <Pencil className="w-4 h-4" />
-                                   </Button>
-                                   <Button 
-                                     variant="ghost" 
-                                     size="icon" 
-                                     className="h-9 w-9 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 hover:text-blue-600"
-                                     onClick={() => toggleVisibility(book)}
-                                   >
-                                     {book.hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                   </Button>
-                                   <Button 
-                                     variant="ghost" 
-                                     size="icon" 
-                                     className="h-9 w-9 rounded-lg hover:bg-red-50 hover:text-red-600"
-                                     onClick={() => deleteBook(book.id)}
-                                   >
-                                    <Trash2 className="w-4 h-4" />
-                                   </Button>
-                                 </div>
+                                   </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className="rounded-md uppercase font-bold text-[9px] bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-colors">{book.fileType}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {book.hidden ? (
+                                    <Badge className="bg-red-50 text-red-600 border-red-100 font-bold text-[10px] uppercase tracking-tighter">Hidden</Badge>
+                                  ) : (
+                                    <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 font-bold text-[10px] uppercase tracking-tighter">Visible</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-bold text-[11px] text-slate-400 whitespace-nowrap">
+                                  {new Date(book.createdAt).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell className="text-right pr-8">
+                                   <div className="flex items-center justify-end gap-2">
+                                     <Button 
+                                       variant="ghost" 
+                                       size="icon" 
+                                       className="h-9 w-9 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 hover:text-blue-600"
+                                       onClick={() => startEditing(book)}
+                                     >
+                                       <Pencil className="w-4 h-4" />
+                                     </Button>
+                                     <Button 
+                                       variant="ghost" 
+                                       size="icon" 
+                                       className="h-9 w-9 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 hover:text-blue-600"
+                                       onClick={() => toggleVisibility(book)}
+                                     >
+                                       {book.hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                     </Button>
+                                     <Button 
+                                       variant="ghost" 
+                                       size="icon" 
+                                       className="h-9 w-9 rounded-lg hover:bg-red-50 hover:text-red-600"
+                                       onClick={() => deleteBook(book.id)}
+                                     >
+                                      <Trash2 className="w-4 h-4" />
+                                     </Button>
+                                   </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={5} className="py-20 text-center">
+                                <div className="space-y-3">
+                                  <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto border border-slate-100">
+                                    <BookIcon className="w-6 h-6 text-slate-300" />
+                                  </div>
+                                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No assets found in registry</p>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={fetchBooks}
+                                    className="rounded-xl border-slate-200 font-bold text-[10px] uppercase tracking-widest"
+                                  >
+                                    <RefreshCw className="w-3 h-3 mr-2" />
+                                    Reload Repository
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}
                         </TableBody>
                       </Table>
                     </div>

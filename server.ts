@@ -290,8 +290,9 @@ app.post("/api/drive/sync-folder", authenticateAdmin, async (req, res) => {
   }
 
   try {
-    const drive = google.drive({ version: "v3", auth: apiKey });
+    const drive = google.drive({ version: "v3" });
     const response = await drive.files.list({
+      key: apiKey,
       q: `'${folderId}' in parents and trashed = false`,
       fields: "files(id, name, mimeType, thumbnailLink, webViewLink, webContentLink)",
     });
@@ -302,7 +303,8 @@ app.post("/api/drive/sync-folder", authenticateAdmin, async (req, res) => {
 
     for (const file of files) {
       // Basic filter for documents
-      if (!file.mimeType?.includes("pdf") && !file.mimeType?.includes("epub") && !file.mimeType?.includes("application/octet-stream")) {
+      const mime = file.mimeType || "";
+      if (!mime.includes("pdf") && !mime.includes("epub") && !mime.includes("application/octet-stream")) {
         skipped++;
         continue;
       }
@@ -317,7 +319,7 @@ app.post("/api/drive/sync-folder", authenticateAdmin, async (req, res) => {
         id: Math.random().toString(36).substring(7),
         title: file.name?.replace(/\.[^/.]+$/, "") || "Untitled",
         thumbnailUrl: file.thumbnailLink || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=300",
-        fileType: file.mimeType?.includes("pdf") ? "PDF" : "ASSET",
+        fileType: mime.includes("pdf") ? "PDF" : "ASSET",
         previewUrl: file.webViewLink,
         downloadUrl: file.webContentLink || file.webViewLink,
         categoryId: categoryId || "cat1",
@@ -331,7 +333,8 @@ app.post("/api/drive/sync-folder", authenticateAdmin, async (req, res) => {
 
     res.json({ success: true, imported, skipped, total: files.length });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error("Sync Error:", error.message);
+    res.status(500).json({ message: "Sync failed: " + error.message });
   }
 });
 
