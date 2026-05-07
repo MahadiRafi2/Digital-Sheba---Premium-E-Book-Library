@@ -3,11 +3,20 @@ require_once '../config.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $requestUri = $_SERVER['REQUEST_URI'];
-$basePath = '/api';
-
-// Simple Router
+// Robust Router for cPanel
 $path = parse_url($requestUri, PHP_URL_PATH);
-$route = str_replace($basePath, '', $path);
+// This finds the part of the URL after '/api' correctly even in subfolders
+$route = '';
+if (preg_match('/\/api(\/.*)$/', $path, $matches)) {
+    $route = $matches[1];
+} else if (strpos($path, '/api') === false) {
+    // If '/api' is missing but we're in the api folder, just use the path relative to it
+    $route = $path;
+}
+
+// Ensure route starts with / but doesn't end with / (unless it's just /)
+$route = '/' . ltrim($route, '/');
+
 $db = getDB();
 
 switch (true) {

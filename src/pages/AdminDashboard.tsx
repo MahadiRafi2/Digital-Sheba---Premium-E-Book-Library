@@ -215,8 +215,8 @@ export default function AdminDashboard() {
   }
 
   const filteredBooks = books.filter(book => 
-    book.title.toLowerCase().includes(search.toLowerCase()) ||
-    book.id.toLowerCase().includes(search.toLowerCase())
+    (book.title?.toLowerCase() || "").includes(search.toLowerCase()) ||
+    (book.id?.toLowerCase() || "").includes(search.toLowerCase())
   );
 
   return (
@@ -308,6 +308,8 @@ export default function AdminDashboard() {
                 placeholder="Search repository..." 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                autoComplete="off"
+                name="search-ignore"
               />
             </div>
             <div className="flex items-center gap-3 pl-0 md:pl-6 border-l-0 md:border-l border-slate-200">
