@@ -21,15 +21,22 @@ export default function HomeGuard({ children }: { children: React.ReactNode }) {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!password || loading) return;
+    
     setLoading(true);
     try {
-      const response = await axios.post("/api/auth/home-verify", { password });
+      console.log("Verifying PIN...");
+      const response = await axios.post("/api/auth/home-verify", { password }, { timeout: 10000 });
       if (response.data.success) {
         loginHome();
         toast.success("Welcome to the Library!");
+      } else {
+        toast.error("Verification failed");
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Invalid PIN");
+      console.error("Home Verify Error:", error);
+      const msg = error.response?.data?.message || (error.code === 'ECONNABORTED' ? "Connection timed out" : "Invalid PIN");
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -41,11 +48,12 @@ export default function HomeGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 flex items-center justify-center p-4 md:p-6 overflow-y-auto">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md w-full bg-white rounded-[32px] md:rounded-[40px] p-8 md:p-12 shadow-2xl border border-slate-100 text-center relative overflow-hidden my-auto"
-      >
+      <div className="min-h-full w-full flex items-center justify-center py-8">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-white rounded-[32px] md:rounded-[40px] p-8 md:p-12 shadow-2xl border border-slate-100 text-center relative overflow-hidden"
+        >
         <div className="absolute top-0 left-0 w-full h-1.5 md:h-2 bg-gradient-to-r from-blue-600 to-indigo-600" />
         
         {config.logoUrl ? (
@@ -73,16 +81,17 @@ export default function HomeGuard({ children }: { children: React.ReactNode }) {
               onChange={(e) => setPassword(e.target.value)}
               className="h-16 md:h-20 text-center text-2xl md:text-3xl tracking-[0.8em] rounded-[20px] md:rounded-[24px] border-slate-200 focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 font-mono transition-all shadow-sm bg-slate-50/50"
               required
-              autoFocus
               maxLength={12}
+              autoComplete="current-password"
             />
           </div>
           <Button 
+            type="submit"
             disabled={loading}
             className="w-full bg-slate-900 hover:bg-black h-16 md:h-18 rounded-[20px] md:rounded-[24px] font-black text-base md:text-lg shadow-2xl shadow-slate-900/20 group active:scale-[0.98] transition-all text-white mt-2 md:mt-4"
           >
             {loading ? "VERIFYING..." : (
-              <span className="flex items-center justify-center gap-2 md:gap-3">
+              <span className="flex items-center justify-center gap-2 md:gap-3 pointer-events-none">
                 OPEN LIBRARY <ArrowRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform" />
               </span>
             )}
@@ -94,6 +103,7 @@ export default function HomeGuard({ children }: { children: React.ReactNode }) {
           <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-widest leading-none">Security Verified Node</span>
         </div>
       </motion.div>
+      </div>
     </div>
   );
 }

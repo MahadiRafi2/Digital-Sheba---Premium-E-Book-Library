@@ -95,15 +95,17 @@ export default function Navbar() {
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">Search Library</DialogTitle>
                 </DialogHeader>
                 <div className="p-6">
-                  <form onSubmit={handleSearch} className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <Input 
-                      autoFocus
-                      placeholder="Search by title, category..." 
-                      className="h-14 pl-12 rounded-2xl border-slate-200 focus:ring-4 focus:ring-blue-500/10 text-base font-bold shadow-none"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                  <form onSubmit={handleSearch}>
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                      <Input 
+                        autoFocus
+                        placeholder="Search by title, category..." 
+                        className="h-14 pl-12 rounded-2xl border-slate-200 focus:ring-4 focus:ring-blue-500/10 text-base font-bold shadow-none"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
                     <Button type="submit" className="w-full mt-4 h-12 rounded-xl bg-blue-600 font-bold uppercase tracking-widest text-xs">
                       Search Now
                     </Button>
@@ -123,7 +125,7 @@ export default function Navbar() {
             <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
               <DialogTrigger asChild>
                 <button className="p-2.5 text-slate-500 hover:text-slate-900 transition-colors bg-slate-100/50 rounded-full border border-slate-200/50">
-                  <Search className="w-5 h-5" />
+                   <Search className="w-5 h-5" />
                 </button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px] top-[20%] translate-y-0 duration-300 rounded-3xl border-none shadow-2xl overflow-hidden p-0">
@@ -131,15 +133,17 @@ export default function Navbar() {
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">Search Library</DialogTitle>
                 </DialogHeader>
                 <div className="p-6">
-                  <form onSubmit={handleSearch} className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <Input 
-                      autoFocus
-                      placeholder="Search by title, category..." 
-                      className="h-14 pl-12 rounded-2xl border-slate-200 focus:ring-4 focus:ring-blue-500/10 text-base font-bold shadow-none"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                  <form onSubmit={handleSearch}>
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                      <Input 
+                        autoFocus
+                        placeholder="Search by title, category..." 
+                        className="h-14 pl-12 rounded-2xl border-slate-200 focus:ring-4 focus:ring-blue-500/10 text-base font-bold shadow-none"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
                     <Button type="submit" className="w-full mt-4 h-12 rounded-xl bg-blue-600 font-bold uppercase tracking-widest text-xs">
                       Search Now
                     </Button>
