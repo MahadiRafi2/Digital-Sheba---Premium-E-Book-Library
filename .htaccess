@@ -1,0 +1,21 @@
+# Digital Sheba cPanel Configuration
+# Place this in your public_html folder
+
+RewriteEngine On
+
+# Redirect /api URLs to the PHP API handler
+RewriteRule ^api/(.*)$ api/index.php [L,QSA]
+
+# Handle React Router (SPA) - redirect all non-files to index.html
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
+
+# Basic security - disable directory listing
+Options -Indexes
+
+# PHP security settings
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_value max_execution_time 300
+</IfModule>
