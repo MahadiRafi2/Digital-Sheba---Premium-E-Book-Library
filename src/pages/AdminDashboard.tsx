@@ -117,6 +117,10 @@ export default function AdminDashboard() {
     fetchCategories();
   }, []);
 
+  useEffect(() => {
+    setSearch("");
+  }, [activeTab]);
+
   async function fetchCategories() {
     try {
       const res = await axios.get("/api/categories");
@@ -130,8 +134,13 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const res = await axios.get("/api/books");
-      setBooks(res.data);
+      console.log("Fetched books:", res.data);
+      if (!Array.isArray(res.data)) {
+        console.error("API did not return an array:", res.data);
+      }
+      setBooks(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
+      console.error("Fetch Books Error:", error);
       toast.error("Failed to load books");
     } finally {
       setLoading(false);
@@ -309,8 +318,17 @@ export default function AdminDashboard() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 autoComplete="off"
-                name="search-ignore"
+                name="registry_search_filter_v1"
+                id="registry_search_filter_v1"
               />
+              {search && (
+                <button 
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-slate-200 text-slate-400 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-3 pl-0 md:pl-6 border-l-0 md:border-l border-slate-200">
               <div className="text-right hidden xs:block">
