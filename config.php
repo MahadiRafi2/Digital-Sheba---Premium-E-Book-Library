@@ -5,9 +5,9 @@
 
 // Database Credentials - EDIT THESE FOR YOUR CPANEL SETUP
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'your_database_name');
-define('DB_USER', 'your_database_user');
-define('DB_PASS', 'your_database_password');
+define('DB_NAME', 'futureba_DSEbook');
+define('DB_USER', 'futureba_DSEbookUser');
+define('DB_PASS', '3v5(@CY_=l(!5up6');
 
 // Secret Key for JWT-like Auth
 define('JWT_SECRET', 'lumina-secret-key-change-this');
