@@ -129,11 +129,20 @@ async function initDb() {
 
   const hasCreatedAt = await db.schema.hasColumn("books", "createdAt");
   if (hasBooks && !hasCreatedAt) {
-    await db.schema.alterTable("books", (table) => {
-      table.bigInteger("createdAt").defaultTo(Date.now());
-    });
+    try {
+      await db.schema.alterTable("books", (table) => {
+        table.bigInteger("createdAt").defaultTo(Date.now());
+      });
+      console.log("[DB] Added createdAt column");
+    } catch (e) {
+      console.error("[DB] Failed to add createdAt column", e);
+    }
+  }
+
+  // Ensure all books have a createdAt and orderIndex
+  if (hasBooks) {
     await db("books").whereNull("createdAt").orWhere("createdAt", 0).update({ createdAt: Date.now() });
-    console.log("[DB] Added and populated createdAt column");
+    await db("books").whereNull("orderIndex").update({ orderIndex: 0 });
   }
 
   // Attempt to populate driveFileId for existing books if missing
@@ -354,7 +363,8 @@ app.get("/api/books", async (req, res) => {
     const sanitizedBooks = books.map(b => ({
       ...b,
       featured: !!b.featured,
-      hidden: !!b.hidden
+      hidden: !!b.hidden,
+      createdAt: b.createdAt ? Number(b.createdAt) : Date.now()
     }));
     res.json(sanitizedBooks);
   } catch (error: any) {
@@ -412,11 +422,12 @@ app.put("/api/books/reorder", authenticateAdmin, async (req, res) => {
   console.log(`[REORDER] Processing ${orders.length} items`);
 
   try {
-    // Attempt reorder without transaction first to see if it's more stable
-    for (const item of orders) {
-      if (!item.id) continue;
-      await db("books").where("id", item.id).update({ orderIndex: item.orderIndex });
-    }
+    // Perform updates in parallel for performance
+    await Promise.all(orders.map(item => {
+      if (!item.id) return Promise.resolve();
+      return db("books").where("id", item.id).update({ orderIndex: item.orderIndex });
+    }));
+    
     console.log(`[REORDER] Successfully updated ${orders.length} items`);
     res.json({ message: "Reorder successful" });
   } catch (error: any) {
@@ -424,7 +435,7 @@ app.put("/api/books/reorder", authenticateAdmin, async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: "Database reorder failed: " + error.message,
-      detail: error.toString()
+      detail: error.stack || error.toString()
     });
   }
 });

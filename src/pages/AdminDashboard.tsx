@@ -138,7 +138,7 @@ const SortableRow: React.FC<SortableRowProps> = ({ book, startEditing, toggleVis
       )}
     </TableCell>
     <TableCell className="font-bold text-[11px] text-slate-400 whitespace-nowrap">
-      {new Date(book.createdAt).toLocaleDateString()}
+      {book.createdAt ? new Date(Number(book.createdAt)).toLocaleDateString() : 'N/A'}
     </TableCell>
     <TableCell className="text-right pr-8">
        <div className="flex items-center justify-end gap-2">
@@ -443,8 +443,12 @@ export default function AdminDashboard() {
       const res = await axios.put("/api/admin/sync-cloudinary", {}, authHeader);
       toast.success(`Cloud Mirror Sync: ${res.data.synced} synced, ${res.data.failed} failed`);
       fetchBooks();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Sync failed");
+    } catch (err: any) {
+      console.error("Cloudinary sync failed:", err);
+      const data = err.response?.data;
+      const msg = data?.message || data?.error || err.message || "Sync failed";
+      const detail = data?.detail ? ` (${data.detail})` : "";
+      toast.error(`Sync Error: ${msg}${detail}`);
     } finally {
       setSyncCloudLoading(false);
     }
