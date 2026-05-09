@@ -178,18 +178,38 @@ export default function AdminDashboard() {
   async function updateBook() {
     if (!editingBook) return;
     setUpdatingBook(true);
+    
+    // Extract driveFileId from editThumbnailUrl if it's a drive link
+    let extractedDriveId = editingBook.driveFileId;
+    const drivePatterns = [
+      /\/file\/d\/([a-zA-Z0-9_-]+)/,
+      /id=([a-zA-Z0-9_-]+)/,
+      /\/open\?id=([a-zA-Z0-9_-]+)/,
+      /docs\.google\.com\/.*\/([a-zA-Z0-9_-]+)\/view/
+    ];
+
+    for (const pattern of drivePatterns) {
+      const match = editThumbnailUrl.match(pattern);
+      if (match && match[1]) {
+        extractedDriveId = match[1];
+        break;
+      }
+    }
+
     try {
       await axios.put(`/api/books/${editingBook.id}`, {
         title: editTitle,
         thumbnailUrl: editThumbnailUrl,
-        categoryId: editCategoryId
+        categoryId: editCategoryId,
+        driveFileId: extractedDriveId
       }, authHeader);
       
       setBooks(books.map(b => b.id === editingBook.id ? { 
         ...b, 
         title: editTitle, 
         thumbnailUrl: editThumbnailUrl, 
-        categoryId: editCategoryId 
+        categoryId: editCategoryId,
+        driveFileId: extractedDriveId
       } : b));
       
       toast.success("Book updated successfully");
@@ -427,18 +447,23 @@ export default function AdminDashboard() {
                         </TableHeader>
                         <TableBody>
                           {filteredBooks.length > 0 ? (
-                            filteredBooks.map(book => (
-                              <TableRow key={book.id} className="group hover:bg-blue-50/30 border-slate-100 transition-colors">
-                                <TableCell className="py-5 pl-8">
-                                   <div className="flex items-center gap-4">
-                                      {book.thumbnailUrl ? (
-                                        <img src={book.thumbnailUrl} className="w-10 h-14 object-cover rounded shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
-                                      ) : (
-                                        <div className="w-10 h-14 rounded bg-slate-50 border border-slate-100 flex items-center justify-center">
-                                          <BookIcon className="w-4 h-4 text-slate-300" />
-                                        </div>
-                                      )}
-                                      <div className="max-w-[200px] sm:max-w-xs">
+                            filteredBooks.map(book => {
+                              const thumbUrl = book.driveFileId 
+                                ? `https://drive.google.com/thumbnail?id=${book.driveFileId}&sz=w800`
+                                : (book.thumbnailUrl || "");
+                              
+                              return (
+                                <TableRow key={book.id} className="group hover:bg-blue-50/30 border-slate-100 transition-colors">
+                                  <TableCell className="py-5 pl-8">
+                                     <div className="flex items-center gap-4">
+                                        {thumbUrl ? (
+                                          <img src={thumbUrl} className="w-10 h-14 object-cover rounded shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
+                                        ) : (
+                                          <div className="w-10 h-14 rounded bg-slate-50 border border-slate-100 flex items-center justify-center">
+                                            <BookIcon className="w-4 h-4 text-slate-300" />
+                                          </div>
+                                        )}
+                                        <div className="max-w-[200px] sm:max-w-xs">
                                          <p className="font-bold text-sm text-slate-900 leading-snug mb-0.5 group-hover:text-blue-600 transition-colors truncate sm:whitespace-normal">{book.title}</p>
                                          <p className="font-mono text-[10px] text-slate-400 uppercase tracking-tighter truncate">{book.id}</p>
                                       </div>
@@ -486,8 +511,9 @@ export default function AdminDashboard() {
                                    </div>
                                 </TableCell>
                               </TableRow>
-                            ))
-                          ) : (
+                            );
+                          })
+                        ) : (
                             <TableRow>
                               <TableCell colSpan={5} className="py-20 text-center">
                                 <div className="space-y-3">
@@ -882,13 +908,16 @@ export default function AdminDashboard() {
                  </div>
 
                  <div className="space-y-1.5 pt-2">
-                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Thumbnail URL (JPG/PNG)</label>
+                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Thumbnail or Drive Link</label>
                    <Input 
                      value={editThumbnailUrl}
                      onChange={(e) => setEditThumbnailUrl(e.target.value)}
-                     placeholder="https://example.com/cover.jpg"
+                     placeholder="Paste Drive Link or Image URL"
                      className="h-11 rounded-xl font-mono text-xs bg-slate-50 border-slate-200 focus:bg-white"
                    />
+                   <p className="text-[9px] font-bold text-slate-400 pl-1 uppercase tracking-tight">
+                     Paste a Google Drive link to automatically use the first page as the cover.
+                   </p>
                  </div>
 
                  <div className="pt-4 flex gap-3">

@@ -8,6 +8,7 @@ export interface Book {
   categoryId?: string;
   featured?: boolean;
   hidden?: boolean;
+  driveFileId?: string;
   createdAt: number;
 }
 

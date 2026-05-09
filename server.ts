@@ -98,6 +98,42 @@ async function initDb() {
     console.log("[DB] Added driveFileId column to books table");
   }
 
+  // Attempt to populate driveFileId for existing books if missing
+  if (hasBooks) {
+    const booksToUpdate = await db("books")
+      .whereNull("driveFileId")
+      .orWhere("driveFileId", "");
+    
+    for (const book of booksToUpdate) {
+      const url = book.previewUrl || book.downloadUrl || "";
+      let driveId = null;
+      
+      // Extract ID from various Drive URL formats
+      const patterns = [
+        /\/file\/d\/([a-zA-Z0-9_-]+)/,
+        /id=([a-zA-Z0-9_-]+)/,
+        /\/open\?id=([a-zA-Z0-9_-]+)/,
+        /docs\.google\.com\/.*\/([a-zA-Z0-9_-]+)\/view/
+      ];
+
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match && match[1]) {
+          driveId = match[1];
+          break;
+        }
+      }
+
+      if (driveId) {
+        try {
+          await db("books").where("id", book.id).update({ driveFileId: driveId });
+        } catch (e) {
+          // Likely a duplicate driveFileId, ignore
+        }
+      }
+    }
+  }
+
   const hasUsers = await db.schema.hasTable("users");
   if (!hasUsers) {
     await db.schema.createTable("users", (table) => {

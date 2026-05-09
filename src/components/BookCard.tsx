@@ -11,6 +11,13 @@ interface BookCardProps {
 }
 
 export const BookCard: React.FC<BookCardProps> = ({ book }) => {
+  const getThumbnailUrl = () => {
+    if (book.driveFileId) {
+      return `https://drive.google.com/thumbnail?id=${book.driveFileId}&sz=w800`;
+    }
+    return book.thumbnailUrl || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=600";
+  };
+
   return (
     <motion.div
       layout
@@ -22,7 +29,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book }) => {
       <Card className="bg-white border-slate-200 overflow-hidden group h-full flex flex-col shadow-sm hover:shadow-2xl hover:shadow-blue-900/10 transition-all duration-500 rounded-[28px]">
         <div className="relative aspect-[3/4] overflow-hidden">
           <img
-            src={book.thumbnailUrl || "https://picsum.photos/seed/book/400/600"}
+            src={getThumbnailUrl()}
             alt={book.title}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
             referrerPolicy="no-referrer"
