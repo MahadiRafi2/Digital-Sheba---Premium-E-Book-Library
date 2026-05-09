@@ -127,6 +127,15 @@ async function initDb() {
     console.log("[DB] Added orderIndex column to books table");
   }
 
+  const hasCreatedAt = await db.schema.hasColumn("books", "createdAt");
+  if (hasBooks && !hasCreatedAt) {
+    await db.schema.alterTable("books", (table) => {
+      table.bigInteger("createdAt").defaultTo(Date.now());
+    });
+    await db("books").whereNull("createdAt").orWhere("createdAt", 0).update({ createdAt: Date.now() });
+    console.log("[DB] Added and populated createdAt column");
+  }
+
   // Attempt to populate driveFileId for existing books if missing
   if (hasBooks) {
     const booksToUpdate = await db("books")
@@ -403,18 +412,20 @@ app.put("/api/books/reorder", authenticateAdmin, async (req, res) => {
   console.log(`[REORDER] Processing ${orders.length} items`);
 
   try {
-    await db.transaction(async (trx) => {
-      // Use chunks to avoid too many variables in a single SQL query if needed, 
-      // but here we do individual updates which is fine for small sets.
-      for (const item of orders) {
-        if (!item.id) continue;
-        await trx("books").where("id", item.id).update({ orderIndex: item.orderIndex });
-      }
-    });
+    // Attempt reorder without transaction first to see if it's more stable
+    for (const item of orders) {
+      if (!item.id) continue;
+      await db("books").where("id", item.id).update({ orderIndex: item.orderIndex });
+    }
+    console.log(`[REORDER] Successfully updated ${orders.length} items`);
     res.json({ message: "Reorder successful" });
   } catch (error: any) {
     console.error("[REORDER ERROR]", error);
-    res.status(500).json({ message: "Database reorder failed: " + error.message });
+    res.status(500).json({ 
+      success: false,
+      message: "Database reorder failed: " + error.message,
+      detail: error.toString()
+    });
   }
 });
 

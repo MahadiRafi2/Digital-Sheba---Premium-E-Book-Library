@@ -247,8 +247,10 @@ export default function AdminDashboard() {
       await axios.put('/api/books/reorder', { orders: updates }, authHeader);
     } catch (err: any) {
       console.error("Failed to reorder:", err);
-      const msg = err.response?.data?.message || err.message || "Failed to save sort order";
-      toast.error(`Error: ${msg}`);
+      const data = err.response?.data;
+      const msg = data?.message || data?.error || err.message || "Failed to save sort order";
+      const detail = data?.detail ? ` (${data.detail})` : "";
+      toast.error(`Error: ${msg}${detail}`);
       fetchBooks(); // Revert
     }
     }
