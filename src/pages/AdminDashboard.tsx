@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, 
@@ -22,8 +22,28 @@ import {
   User,
   Pencil,
   X,
-  Menu
+  Menu,
+  GripVertical
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +55,122 @@ import { Book } from "@/types";
 import { toast } from "sonner";
 import axios from "axios";
 import { Image as ImageIcon, Laptop } from "lucide-react";
+
+interface SortableRowProps {
+  book: Book;
+  startEditing: (book: Book) => void;
+  toggleVisibility: (book: Book) => void;
+  deleteBook: (id: string) => void;
+}
+
+const SortableRow: React.FC<SortableRowProps> = ({ book, startEditing, toggleVisibility, deleteBook }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: book.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 0,
+    position: 'relative' as const,
+    opacity: isDragging ? 0.8 : 1,
+  };
+
+  const thumbUrl = book.driveFileId 
+    ? `/api/proxy-thumbnail/${book.driveFileId}`
+    : (book.thumbnailUrl || "");
+
+  const hasCloudinary = book.thumbnailUrl?.includes("cloudinary");
+
+  return (
+    <TableRow 
+      ref={setNodeRef} 
+      style={style} 
+      className={`group border-slate-100 transition-colors ${isDragging ? "bg-blue-50/50 shadow-sm z-50" : "hover:bg-blue-50/30"}`}
+    >
+      <TableCell className="w-10 pl-6 pr-0">
+        <div 
+          {...attributes} 
+          {...listeners} 
+          className="p-2 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-600 transition-colors touch-none"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+      </TableCell>
+      <TableCell>
+        <span className="font-mono text-[10px] font-bold text-slate-400">#{book.orderIndex || 0}</span>
+      </TableCell>
+      <TableCell className="py-5">
+         <div className="flex items-center gap-4">
+            <div className="relative group/thumb">
+              {thumbUrl ? (
+                <img src={thumbUrl} className="w-10 h-14 object-cover rounded shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-10 h-14 rounded bg-slate-50 border border-slate-100 flex items-center justify-center">
+                  <BookIcon className="w-4 h-4 text-slate-300" />
+                </div>
+              )}
+              {hasCloudinary && (
+                <div className="absolute -top-1 -right-1 bg-emerald-500 text-white p-0.5 rounded-full shadow-sm border border-white" title="Cloud Mirror Sync Active">
+                  <Globe className="w-2.5 h-2.5" />
+                </div>
+              )}
+            </div>
+            <div className="max-w-[200px] sm:max-w-xs">
+             <p className="font-bold text-sm text-slate-900 leading-snug mb-0.5 group-hover:text-blue-600 transition-colors truncate sm:whitespace-normal">{book.title}</p>
+             <p className="font-mono text-[10px] text-slate-400 uppercase tracking-tighter truncate">{book.id}</p>
+          </div>
+       </div>
+    </TableCell>
+    <TableCell>
+      <Badge className="rounded-md uppercase font-bold text-[9px] bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-colors">{book.fileType}</Badge>
+    </TableCell>
+    <TableCell>
+      {book.hidden ? (
+        <Badge className="bg-red-50 text-red-600 border-red-100 font-bold text-[10px] uppercase tracking-tighter">Hidden</Badge>
+      ) : (
+        <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 font-bold text-[10px] uppercase tracking-tighter">Visible</Badge>
+      )}
+    </TableCell>
+    <TableCell className="font-bold text-[11px] text-slate-400 whitespace-nowrap">
+      {new Date(book.createdAt).toLocaleDateString()}
+    </TableCell>
+    <TableCell className="text-right pr-8">
+       <div className="flex items-center justify-end gap-2">
+         <Button 
+           variant="ghost" 
+           size="icon" 
+           className="h-9 w-9 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 hover:text-blue-600"
+           onClick={() => startEditing(book)}
+         >
+           <Pencil className="w-4 h-4" />
+         </Button>
+         <Button 
+           variant="ghost" 
+           size="icon" 
+           className="h-9 w-9 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 hover:text-blue-600"
+           onClick={() => toggleVisibility(book)}
+         >
+           {book.hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+         </Button>
+         <Button 
+           variant="ghost" 
+           size="icon" 
+           className="h-9 w-9 rounded-lg hover:bg-red-50 hover:text-red-600"
+           onClick={() => deleteBook(book.id)}
+         >
+          <Trash2 className="w-4 h-4" />
+         </Button>
+       </div>
+    </TableCell>
+  </TableRow>
+);
+};
 
 export default function AdminDashboard() {
   const { logout, token } = useAuth();
@@ -67,6 +203,55 @@ export default function AdminDashboard() {
   const [editOrderIndex, setEditOrderIndex] = useState(0);
   const [updatingBook, setUpdatingBook] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [syncCloudLoading, setSyncCloudLoading] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      if (search) {
+        toast.error("Please clear search before reordering");
+        return;
+      }
+
+      const oldIndex = books.findIndex((book) => book.id === active.id);
+      const newIndex = books.findIndex((book) => book.id === over.id);
+      
+      const newBooks = arrayMove(books, oldIndex, newIndex);
+      const updatedBooks = newBooks.map((book: any, index: number) => ({ ...book, orderIndex: index } as Book));
+      
+      setBooks(updatedBooks);
+
+      try {
+        const updates = updatedBooks.map(book => ({
+          id: book.id,
+          orderIndex: book.orderIndex
+        }));
+        await axios.put('/api/books/reorder', { orders: updates }, authHeader);
+      } catch (err) {
+        console.error("Failed to reorder:", err);
+        toast.error("Failed to save sort order");
+        fetchBooks(); // Revert
+      }
+    }
+  }
 
   useEffect(() => {
     if (config) {
@@ -199,7 +384,7 @@ export default function AdminDashboard() {
     }
 
     try {
-      await axios.put(`/api/books/${editingBook.id}`, {
+      const res = await axios.put(`/api/books/${editingBook.id}`, {
         title: editTitle,
         thumbnailUrl: editThumbnailUrl,
         categoryId: editCategoryId,
@@ -207,10 +392,12 @@ export default function AdminDashboard() {
         orderIndex: editOrderIndex
       }, authHeader);
       
+      const updatedThumbnailUrl = res.data.thumbnailUrl || editThumbnailUrl;
+
       setBooks(books.map(b => b.id === editingBook.id ? { 
         ...b, 
         title: editTitle, 
-        thumbnailUrl: editThumbnailUrl, 
+        thumbnailUrl: updatedThumbnailUrl, 
         categoryId: editCategoryId,
         driveFileId: extractedDriveId,
         orderIndex: editOrderIndex
@@ -244,6 +431,19 @@ export default function AdminDashboard() {
       toast.error("Sync failed: " + (error.response?.data?.message || error.message));
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function syncToCloudinary() {
+    setSyncCloudLoading(true);
+    try {
+      const res = await axios.put("/api/admin/sync-cloudinary", {}, authHeader);
+      toast.success(`Cloud Mirror Sync: ${res.data.synced} synced, ${res.data.failed} failed`);
+      fetchBooks();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Sync failed");
+    } finally {
+      setSyncCloudLoading(false);
     }
   }
 
@@ -431,10 +631,21 @@ export default function AdminDashboard() {
                       <h3 className="text-2xl font-black tracking-tight text-slate-900 mb-1">Resource Registry</h3>
                       <p className="text-xs font-bold text-slate-400 tracking-wide uppercase">Operational control over assets</p>
                     </div>
-                    <Button className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold h-11 px-6 w-fit">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Document
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <Button 
+                        variant="outline"
+                        onClick={syncToCloudinary}
+                        disabled={syncCloudLoading}
+                        className="rounded-xl border-slate-200 font-bold h-11 px-6 hover:bg-slate-50 transition-colors"
+                      >
+                        {syncCloudLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Globe className="w-4 h-4 mr-2 text-emerald-500" />}
+                        Sync Cloud Mirror
+                      </Button>
+                      <Button className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold h-11 px-6">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Document
+                      </Button>
+                    </div>
                   </div>
 
                   <Card className="bg-white border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden rounded-2xl">
@@ -442,8 +653,9 @@ export default function AdminDashboard() {
                       <Table className="min-w-[800px] lg:min-w-full">
                         <TableHeader className="bg-slate-50/80">
                           <TableRow className="border-slate-100">
-                            <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14 pl-8">Asset Metadata</TableHead>
-                            <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Sort Order</TableHead>
+                            <TableHead className="w-12"></TableHead>
+                            <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14 pl-2">Sort Order</TableHead>
+                            <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Asset Metadata</TableHead>
                             <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Extension</TableHead>
                             <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Status</TableHead>
                             <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Indexed At</TableHead>
@@ -452,78 +664,30 @@ export default function AdminDashboard() {
                         </TableHeader>
                         <TableBody>
                           {filteredBooks.length > 0 ? (
-                            filteredBooks.map(book => {
-                              const thumbUrl = book.driveFileId 
-                                ? `https://drive.google.com/thumbnail?id=${book.driveFileId}&sz=w800`
-                                : (book.thumbnailUrl || "");
-                              
-                              return (
-                                <TableRow key={book.id} className="group hover:bg-blue-50/30 border-slate-100 transition-colors">
-                                  <TableCell>
-                                    <span className="font-mono text-[10px] font-bold text-slate-400">#{book.orderIndex || 0}</span>
-                                  </TableCell>
-                                  <TableCell className="py-5 pl-8">
-                                     <div className="flex items-center gap-4">
-                                        {thumbUrl ? (
-                                          <img src={thumbUrl} className="w-10 h-14 object-cover rounded shadow-sm border border-slate-100" referrerPolicy="no-referrer" />
-                                        ) : (
-                                          <div className="w-10 h-14 rounded bg-slate-50 border border-slate-100 flex items-center justify-center">
-                                            <BookIcon className="w-4 h-4 text-slate-300" />
-                                          </div>
-                                        )}
-                                        <div className="max-w-[200px] sm:max-w-xs">
-                                         <p className="font-bold text-sm text-slate-900 leading-snug mb-0.5 group-hover:text-blue-600 transition-colors truncate sm:whitespace-normal">{book.title}</p>
-                                         <p className="font-mono text-[10px] text-slate-400 uppercase tracking-tighter truncate">{book.id}</p>
-                                      </div>
-                                   </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge className="rounded-md uppercase font-bold text-[9px] bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-colors">{book.fileType}</Badge>
-                                </TableCell>
-                                <TableCell>
-                                  {book.hidden ? (
-                                    <Badge className="bg-red-50 text-red-600 border-red-100 font-bold text-[10px] uppercase tracking-tighter">Hidden</Badge>
-                                  ) : (
-                                    <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 font-bold text-[10px] uppercase tracking-tighter">Visible</Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="font-bold text-[11px] text-slate-400 whitespace-nowrap">
-                                  {new Date(book.createdAt).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell className="text-right pr-8">
-                                   <div className="flex items-center justify-end gap-2">
-                                     <Button 
-                                       variant="ghost" 
-                                       size="icon" 
-                                       className="h-9 w-9 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 hover:text-blue-600"
-                                       onClick={() => startEditing(book)}
-                                     >
-                                       <Pencil className="w-4 h-4" />
-                                     </Button>
-                                     <Button 
-                                       variant="ghost" 
-                                       size="icon" 
-                                       className="h-9 w-9 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 hover:text-blue-600"
-                                       onClick={() => toggleVisibility(book)}
-                                     >
-                                       {book.hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                     </Button>
-                                     <Button 
-                                       variant="ghost" 
-                                       size="icon" 
-                                       className="h-9 w-9 rounded-lg hover:bg-red-50 hover:text-red-600"
-                                       onClick={() => deleteBook(book.id)}
-                                     >
-                                      <Trash2 className="w-4 h-4" />
-                                     </Button>
-                                   </div>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        ) : (
-                            <TableRow>
-                              <TableCell colSpan={5} className="py-20 text-center">
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                                modifiers={[restrictToVerticalAxis]}
+                              >
+                                <SortableContext
+                                  items={filteredBooks.map(b => b.id)}
+                                  strategy={verticalListSortingStrategy}
+                                >
+                                  {filteredBooks.map(book => (
+                                    <SortableRow 
+                                      key={book.id} 
+                                      book={book} 
+                                      startEditing={startEditing}
+                                      toggleVisibility={toggleVisibility}
+                                      deleteBook={deleteBook}
+                                    />
+                                  ))}
+                                </SortableContext>
+                              </DndContext>
+                            ) : (
+                              <TableRow>
+                                <TableCell colSpan={7} className="py-20 text-center">
                                 <div className="space-y-3">
                                   <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto border border-slate-100">
                                     <BookIcon className="w-6 h-6 text-slate-300" />

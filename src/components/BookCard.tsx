@@ -13,7 +13,7 @@ interface BookCardProps {
 export const BookCard: React.FC<BookCardProps> = ({ book }) => {
   const getThumbnailUrl = () => {
     if (book.driveFileId) {
-      return `https://drive.google.com/thumbnail?id=${book.driveFileId}&sz=w800`;
+      return `/api/proxy-thumbnail/${book.driveFileId}`;
     }
     return book.thumbnailUrl || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=600";
   };

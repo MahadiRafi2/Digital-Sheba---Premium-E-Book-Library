@@ -8,9 +8,22 @@ import bcrypt from "bcryptjs";
 import { google } from "googleapis";
 import dotenv from "dotenv";
 import fs from "fs";
+import axios from "axios";
 import knex from "knex";
+import { v2 as cloudinary } from "cloudinary";
 
 dotenv.config();
+
+// User provided Cloudinary configuration
+if (!process.env.CLOUDINARY_URL) {
+  process.env.CLOUDINARY_URL = "cloudinary://264216671821363:BNKATSCfKCOHa1M9C3E_m7JhgRU@dli5rgyfc";
+}
+
+if (process.env.CLOUDINARY_URL) {
+  cloudinary.config({
+    cloudinary_url: process.env.CLOUDINARY_URL
+  });
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -170,6 +183,56 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 
+async function uploadToCloudinary(driveId: string) {
+  if (!process.env.CLOUDINARY_URL) return null;
+  
+  try {
+    const driveUrl = `https://drive.google.com/thumbnail?id=${driveId}&sz=w1000`;
+    const response = await axios.get(driveUrl, { responseType: "arraybuffer", timeout: 15000 });
+    const buffer = Buffer.from(response.data);
+    
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { 
+          folder: "lumina_thumbnails",
+          public_id: driveId,
+          overwrite: true,
+          resource_type: "image",
+          format: "jpg"
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result?.secure_url);
+        }
+      );
+      uploadStream.end(buffer);
+    });
+  } catch (error) {
+    console.error("Cloudinary upload failed for", driveId, error);
+    return null;
+  }
+}
+
+app.get("/api/proxy-thumbnail/:driveId", async (req, res) => {
+  const { driveId } = req.params;
+  
+  // Try to use Cloudinary first if configured
+  if (process.env.CLOUDINARY_URL) {
+    const cloudName = process.env.CLOUDINARY_URL.split('@')[1];
+    const cloudinaryUrl = `https://res.cloudinary.com/${cloudName}/image/upload/lumina_thumbnails/${driveId}.jpg`;
+    
+    try {
+      // Redirect to Cloudinary directly
+      return res.redirect(cloudinaryUrl);
+    } catch (e) {
+      // If error, proceed to fallback
+    }
+  }
+
+  // Final fallback: Direct Google Drive thumbnail
+  res.redirect(`https://drive.google.com/thumbnail?id=${driveId}&sz=w800`);
+});
+
 const JWT_SECRET = process.env.JWT_SECRET || "lumina-secret-key";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
@@ -289,8 +352,37 @@ app.put("/api/books/:id", authenticateAdmin, async (req, res) => {
     if (updateData.featured !== undefined) updateData.featured = updateData.featured ? 1 : 0;
     if (updateData.hidden !== undefined) updateData.hidden = updateData.hidden ? 1 : 0;
     
+    // If driveFileId is new or changed, mirror it to Cloudinary
+    if (updateData.driveFileId) {
+      const existing = await db("books").where("id", req.params.id).first();
+      if (existing.driveFileId !== updateData.driveFileId) {
+        const cloudinaryUrl = await uploadToCloudinary(updateData.driveFileId);
+        if (cloudinaryUrl) {
+          updateData.thumbnailUrl = cloudinaryUrl;
+        }
+      }
+    }
+
     await db("books").where("id", req.params.id).update(updateData);
-    res.json({ message: "Book updated" });
+    res.json({ message: "Book updated", thumbnailUrl: updateData.thumbnailUrl });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.put("/api/books/reorder", authenticateAdmin, async (req, res) => {
+  const { orders } = req.body; 
+  if (!Array.isArray(orders)) {
+    return res.status(400).json({ error: "Invalid orders format" });
+  }
+
+  try {
+    await db.transaction(async (trx) => {
+      for (const { id, orderIndex } of orders) {
+        await trx("books").where("id", id).update({ orderIndex });
+      }
+    });
+    res.json({ message: "Reorder successful" });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -328,7 +420,37 @@ app.post("/api/drive/sync", authenticateAdmin, async (req, res) => {
   }
 });
 
-// Folder Sync API (API Key Based)
+app.put("/api/admin/sync-cloudinary", authenticateAdmin, async (req, res) => {
+  try {
+    if (!process.env.CLOUDINARY_URL) {
+      return res.status(400).json({ message: "Cloudinary is not configured" });
+    }
+
+    const booksToSync = await db("books")
+      .whereNotNull("driveFileId")
+      .whereNot("driveFileId", "")
+      .whereNotLike("thumbnailUrl", "%cloudinary%");
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const book of booksToSync) {
+      const cloudinaryUrl = await uploadToCloudinary(book.driveFileId!);
+      if (cloudinaryUrl) {
+        await db("books").where("id", book.id).update({ thumbnailUrl: cloudinaryUrl });
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    res.json({ message: "Sync complete", synced: successCount, failed: failCount });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Folders API (API Key Based)
 app.post("/api/drive/sync-folder", authenticateAdmin, async (req, res) => {
   const { folderId, apiKey, categoryId } = req.body;
   if (!folderId || !apiKey) {
@@ -361,10 +483,12 @@ app.post("/api/drive/sync-folder", authenticateAdmin, async (req, res) => {
         continue;
       }
 
+      const cloudinaryUrl = await uploadToCloudinary(file.id);
+
       await db("books").insert({
         id: Math.random().toString(36).substring(7),
         title: file.name?.replace(/\.[^/.]+$/, "") || "Untitled",
-        thumbnailUrl: file.thumbnailLink || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=300",
+        thumbnailUrl: (cloudinaryUrl as string) || file.thumbnailLink || "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=300",
         fileType: mime.includes("pdf") ? "PDF" : "ASSET",
         previewUrl: file.webViewLink,
         downloadUrl: file.webContentLink || file.webViewLink,
