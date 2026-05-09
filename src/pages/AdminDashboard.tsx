@@ -239,17 +239,18 @@ export default function AdminDashboard() {
       
       setBooks(updatedBooks);
 
-      try {
-        const updates = updatedBooks.map(book => ({
-          id: book.id,
-          orderIndex: book.orderIndex
-        }));
-        await axios.put('/api/books/reorder', { orders: updates }, authHeader);
-      } catch (err) {
-        console.error("Failed to reorder:", err);
-        toast.error("Failed to save sort order");
-        fetchBooks(); // Revert
-      }
+    try {
+      const updates = updatedBooks.map(book => ({
+        id: book.id,
+        orderIndex: book.orderIndex
+      }));
+      await axios.put('/api/books/reorder', { orders: updates }, authHeader);
+    } catch (err: any) {
+      console.error("Failed to reorder:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to save sort order";
+      toast.error(`Error: ${msg}`);
+      fetchBooks(); // Revert
+    }
     }
   }
 

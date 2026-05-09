@@ -15,14 +15,21 @@ import { v2 as cloudinary } from "cloudinary";
 dotenv.config();
 
 // User provided Cloudinary configuration
-if (!process.env.CLOUDINARY_URL) {
-  process.env.CLOUDINARY_URL = "cloudinary://264216671821363:BNKATSCfKCOHa1M9C3E_m7JhgRU@dli5rgyfc";
-}
+const MASTER_CLOUDINARY_URL = process.env.CLOUDINARY_URL || "cloudinary://264216671821363:BNKATSCfKCOHa1M9C3E_m7JhgRU@dli5rgyfc";
 
-if (process.env.CLOUDINARY_URL) {
-  cloudinary.config({
-    cloudinary_url: process.env.CLOUDINARY_URL
-  });
+try {
+  const match = MASTER_CLOUDINARY_URL.match(/cloudinary:\/\/([^:]+):([^@]+)@(.+)/);
+  if (match) {
+    cloudinary.config({
+      api_key: match[1],
+      api_secret: match[2],
+      cloud_name: match[3],
+      secure: true
+    });
+    console.log("[CLOUDINARY] Configured for cloud:", match[3]);
+  }
+} catch (e) {
+  console.error("[CLOUDINARY] Failed to parse URL", e);
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -175,7 +182,8 @@ async function initDb() {
   }
 }
 
-initDb();
+// initDb is now called and awaited inside startServer
+// initDb();
 
 const app = express();
 const PORT = 3000;
@@ -184,7 +192,7 @@ app.use(cors());
 app.use(express.json());
 
 async function uploadToCloudinary(driveId: string) {
-  if (!process.env.CLOUDINARY_URL) return null;
+  if (!MASTER_CLOUDINARY_URL) return null;
   
   try {
     const driveUrl = `https://drive.google.com/thumbnail?id=${driveId}&sz=w1000`;
@@ -217,19 +225,35 @@ app.get("/api/proxy-thumbnail/:driveId", async (req, res) => {
   const { driveId } = req.params;
   
   // Try to use Cloudinary first if configured
-  if (process.env.CLOUDINARY_URL) {
-    const cloudName = process.env.CLOUDINARY_URL.split('@')[1];
-    const cloudinaryUrl = `https://res.cloudinary.com/${cloudName}/image/upload/lumina_thumbnails/${driveId}.jpg`;
-    
+  if (MASTER_CLOUDINARY_URL) {
     try {
-      // Redirect to Cloudinary directly
-      return res.redirect(cloudinaryUrl);
-    } catch (e) {
-      // If error, proceed to fallback
+      const match = MASTER_CLOUDINARY_URL.match(/@(.+)$/);
+      const cloudName = match ? match[1] : null;
+      
+      if (cloudName) {
+        const cloudinaryUrl = `https://res.cloudinary.com/${cloudName}/image/upload/lumina_thumbnails/${driveId}.jpg`;
+        
+        // We do a brief HEAD check to see if it exists in Cloudinary
+        // If it exists, we redirect
+        try {
+          await axios.head(cloudinaryUrl, { timeout: 1500 });
+          return res.redirect(cloudinaryUrl);
+        } catch (e) {
+          // Not in Cloudinary yet, background sync
+          uploadToCloudinary(driveId).then(async (url) => {
+            if (url) {
+              await db("books").where("driveFileId", driveId).update({ thumbnailUrl: url as string }).catch(err => console.error("Sync update error", err));
+            }
+          }).catch(err => console.error("Background upload failed", err));
+        }
+      }
+    } catch (err) {
+      console.error("Cloudinary proxy error:", err);
     }
   }
 
-  // Final fallback: Direct Google Drive thumbnail
+  // Fallback: Direct Google Drive thumbnail
+  // We use a safe set of parameters
   res.redirect(`https://drive.google.com/thumbnail?id=${driveId}&sz=w800`);
 });
 
@@ -373,18 +397,24 @@ app.put("/api/books/:id", authenticateAdmin, async (req, res) => {
 app.put("/api/books/reorder", authenticateAdmin, async (req, res) => {
   const { orders } = req.body; 
   if (!Array.isArray(orders)) {
-    return res.status(400).json({ error: "Invalid orders format" });
+    return res.status(400).json({ message: "Invalid orders format" });
   }
+
+  console.log(`[REORDER] Processing ${orders.length} items`);
 
   try {
     await db.transaction(async (trx) => {
-      for (const { id, orderIndex } of orders) {
-        await trx("books").where("id", id).update({ orderIndex });
+      // Use chunks to avoid too many variables in a single SQL query if needed, 
+      // but here we do individual updates which is fine for small sets.
+      for (const item of orders) {
+        if (!item.id) continue;
+        await trx("books").where("id", item.id).update({ orderIndex: item.orderIndex });
       }
     });
     res.json({ message: "Reorder successful" });
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error("[REORDER ERROR]", error);
+    res.status(500).json({ message: "Database reorder failed: " + error.message });
   }
 });
 
@@ -429,7 +459,7 @@ app.put("/api/admin/sync-cloudinary", authenticateAdmin, async (req, res) => {
     const booksToSync = await db("books")
       .whereNotNull("driveFileId")
       .whereNot("driveFileId", "")
-      .whereNotLike("thumbnailUrl", "%cloudinary%");
+      .where("thumbnailUrl", "not like", "%cloudinary%");
 
     let successCount = 0;
     let failCount = 0;
@@ -552,6 +582,12 @@ app.post("/api/settings", authenticateAdmin, async (req, res) => {
 
 // Vite middleware for development
 async function startServer() {
+  // Ensure DB is ready before listening
+  await initDb().catch(err => {
+    console.error("[FATAL] DB Initialization failed:", err);
+    process.exit(1);
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
