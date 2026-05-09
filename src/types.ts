@@ -9,6 +9,7 @@ export interface Book {
   featured?: boolean;
   hidden?: boolean;
   driveFileId?: string;
+  orderIndex?: number;
   createdAt: number;
 }
 

@@ -64,6 +64,7 @@ export default function AdminDashboard() {
   const [editTitle, setEditTitle] = useState("");
   const [editThumbnailUrl, setEditThumbnailUrl] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
+  const [editOrderIndex, setEditOrderIndex] = useState(0);
   const [updatingBook, setUpdatingBook] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -173,6 +174,7 @@ export default function AdminDashboard() {
     setEditTitle(book.title);
     setEditThumbnailUrl(book.thumbnailUrl || "");
     setEditCategoryId(book.categoryId || "cat1");
+    setEditOrderIndex(book.orderIndex || 0);
   }
 
   async function updateBook() {
@@ -201,7 +203,8 @@ export default function AdminDashboard() {
         title: editTitle,
         thumbnailUrl: editThumbnailUrl,
         categoryId: editCategoryId,
-        driveFileId: extractedDriveId
+        driveFileId: extractedDriveId,
+        orderIndex: editOrderIndex
       }, authHeader);
       
       setBooks(books.map(b => b.id === editingBook.id ? { 
@@ -209,7 +212,8 @@ export default function AdminDashboard() {
         title: editTitle, 
         thumbnailUrl: editThumbnailUrl, 
         categoryId: editCategoryId,
-        driveFileId: extractedDriveId
+        driveFileId: extractedDriveId,
+        orderIndex: editOrderIndex
       } : b));
       
       toast.success("Book updated successfully");
@@ -439,6 +443,7 @@ export default function AdminDashboard() {
                         <TableHeader className="bg-slate-50/80">
                           <TableRow className="border-slate-100">
                             <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14 pl-8">Asset Metadata</TableHead>
+                            <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Sort Order</TableHead>
                             <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Extension</TableHead>
                             <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Status</TableHead>
                             <TableHead className="font-bold text-[10px] uppercase tracking-widest text-slate-400 h-14">Indexed At</TableHead>
@@ -454,6 +459,9 @@ export default function AdminDashboard() {
                               
                               return (
                                 <TableRow key={book.id} className="group hover:bg-blue-50/30 border-slate-100 transition-colors">
+                                  <TableCell>
+                                    <span className="font-mono text-[10px] font-bold text-slate-400">#{book.orderIndex || 0}</span>
+                                  </TableCell>
                                   <TableCell className="py-5 pl-8">
                                      <div className="flex items-center gap-4">
                                         {thumbUrl ? (
@@ -867,6 +875,20 @@ export default function AdminDashboard() {
                <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                  <div>
                    <h4 className="text-lg font-black text-slate-900 tracking-tight">Edit Resource</h4>
+                   <div className="mt-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-4">
+                     <div>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Priority Order</p>
+                       <Input 
+                         type="number"
+                         value={editOrderIndex}
+                         onChange={(e) => setEditOrderIndex(parseInt(e.target.value) || 0)}
+                         className="h-10 w-24 rounded-lg font-mono font-bold"
+                       />
+                     </div>
+                     <p className="text-[10px] font-medium text-slate-400 leading-tight">
+                       Use smaller numbers (like 1, 2) to show this book first.
+                     </p>
+                   </div>
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Asset ID: {editingBook.id}</p>
                  </div>
                  <Button variant="ghost" size="icon" onClick={() => setEditingBook(null)} className="rounded-xl hover:bg-white border border-transparent hover:border-slate-200">

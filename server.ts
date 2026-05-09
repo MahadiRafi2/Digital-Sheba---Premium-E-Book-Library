@@ -38,6 +38,7 @@ async function initDb() {
       table.string("driveFileId").unique(); // Prevent duplicates
       table.boolean("featured").defaultTo(false);
       table.boolean("hidden").defaultTo(false);
+      table.integer("orderIndex").defaultTo(0);
       table.bigInteger("createdAt").notNullable();
     });
     console.log("[DB] Books table created");
@@ -96,6 +97,14 @@ async function initDb() {
       table.string("driveFileId").unique();
     });
     console.log("[DB] Added driveFileId column to books table");
+  }
+
+  const hasOrderIndex = await db.schema.hasColumn("books", "orderIndex");
+  if (hasBooks && !hasOrderIndex) {
+    await db.schema.alterTable("books", (table) => {
+      table.integer("orderIndex").defaultTo(0);
+    });
+    console.log("[DB] Added orderIndex column to books table");
   }
 
   // Attempt to populate driveFileId for existing books if missing
@@ -244,7 +253,7 @@ app.get("/api/books", async (req, res) => {
     if (categoryId) query = query.where("categoryId", categoryId as string);
     if (hidden === "false") query = query.where("hidden", 0);
 
-    const books = await query.orderBy("createdAt", "desc");
+    const books = await query.orderBy("orderIndex", "asc").orderBy("createdAt", "desc");
     // Ensure boolean fields are converted from 0/1 to true/false for frontend
     const sanitizedBooks = books.map(b => ({
       ...b,
@@ -264,7 +273,8 @@ app.post("/api/books", authenticateAdmin, async (req, res) => {
       id: req.body.id || Math.random().toString(36).substring(7), 
       createdAt: Date.now(),
       featured: req.body.featured ? 1 : 0,
-      hidden: req.body.hidden ? 1 : 0
+      hidden: req.body.hidden ? 1 : 0,
+      orderIndex: req.body.orderIndex || 0
     };
     await db("books").insert(bookData);
     res.json({ ...bookData, featured: !!bookData.featured, hidden: !!bookData.hidden });
@@ -362,6 +372,7 @@ app.post("/api/drive/sync-folder", authenticateAdmin, async (req, res) => {
         driveFileId: file.id,
         featured: 0,
         hidden: 0,
+        orderIndex: 0,
         createdAt: Date.now()
       });
       imported++;
